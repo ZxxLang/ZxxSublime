@@ -1,0 +1,26 @@
+[
+	{
+		"keys": ["tab"],
+		"command": "col_align",
+		"args": {"follow": "\n\t ,([{:;"},
+		"context": [
+			{
+				"key": "selector", "operator": "equal",
+				"operand": "source.zxx",
+				"match_all": true
+			}
+		]
+	},
+	{
+		"keys": ["super+forward_slash"],
+		"command": "toggle_rune_comment",
+		"args": { "rune": " " },
+		"context": [
+			{
+				"key": "selector", "operator": "equal",
+				"operand": "source.zxx",
+				"match_all": true
+			}
+		]
+	}
+]
