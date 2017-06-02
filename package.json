@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.1",
+  "schema_version": "3.0.0",
   "packages": [{
     "name": "Zxx",
     "description": "A ZxxLang plugin collection for SublimeText 3",
