@@ -1,15 +1,16 @@
 {
-  "name": "ZxxSublime",
-  "version": "0.1.0",
-  "author": "YU HengChun <achun.shx@qq.com>",
-  "description": "A ZxxLang plugin collection for SublimeText 3",
-  "scripts": {
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ZxxLang/ZxxSublime.git"
-  },
-  "dependencies" : {
-  },
-  "license": "BSD-2-Clause"
+  "schema_version": "1.0.1",
+  "packages": [{
+    "name": "Zxx",
+    "description": "A ZxxLang plugin collection for SublimeText 3",
+    "author": "YU HengChun <achun.shx@qq.com>",
+    "homepage": "https://github.com/ZxxLang/ZxxSublime",
+    "license": "BSD-2-Clause",
+    "platforms": {
+      "*": [{
+        "version": "0.1.0",
+        "url": "https://github.com/ZxxLang/ZxxSublime/archive/0.1.0.zip"
+      }]
+    }
+  }]
 }
