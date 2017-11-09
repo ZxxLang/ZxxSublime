@@ -35,7 +35,7 @@ def to_prev_separator_on_line(view, pt, follow):
 
 class ColAlignCommand(sublime_plugin.TextCommand):
 
-    def run(self, edit, follow="\n\t ,([{:;"):
+    def run(self, edit, follow="\n\t ,([{:"):
         view = self.view
         origin = []
         maxcol = 0
