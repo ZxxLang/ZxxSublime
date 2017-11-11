@@ -15,12 +15,17 @@ variables:
   # thousands-separator
   t13s3: '\d{1,3}(?:-\d{3})+'
   t3s13: '\d{3}(?:-\d{1,2}|(?:-\d{3})+(?:-\d{1,2})?)'
-  basic_types: (?:self|any|bool|byte|string|rune|float(?:32|64)?|u?int(?:8|16|32|64)?|datetime)
+  basic_types: \b(?:self|any|bool|byte|string|rune|float(?:32|64)?|u?int(?:8|16|32|64)?|datetime)\b(?![-]?[\d\p{L}])
 contexts:
   main:
-    - match: ^(?!use|let|def|fun|pub let|pub fun|pub def)\b.*$
+    - include: use
+    - include: top-let
+    - include: top-def
+    - include: top-fun
+    - match: ^.*
       scope: comment.line.zxx
 
+  use:
     - match: ^(use)\s
       scope: meta.use.zxx
       captures:
@@ -35,6 +40,7 @@ contexts:
             3: string.quoted.use-path.zxx punctuation.definition.string.end.zxx
             4: entity.name.namespace.zxx
 
+  top-let:
     - match: ^(let|pub let)\s
       scope: meta.let.zxx
       captures:
@@ -57,11 +63,13 @@ contexts:
             - match: $
               pop: true
 
+  top-fun:
     - match: ^(fun|pub fun)\s
       scope: meta.function.zxx storage.type.zxx
       push:
         - include: fun
 
+  top-def:
     - match: ^(def|pub def)\s
       scope: meta.type.zxx storage.type.zxx
       push:
@@ -90,12 +98,12 @@ contexts:
     - include: comment
     - match: \b(pub)\b
       scope: storage.modifier.zxx
-    - match: '\b({{basic_types}}) *({{identifier}})?'
+    - match: '({{basic_types}}) *({{identifier}})?'
       captures:
         1: support.type.zxx
         2: variable.other.member.zxx
 
-    - match: '\b({{identifier}}) *({{identifier}})?'
+    - match: '({{identifier}}) *({{identifier}})?'
       captures:
         1: storage.type.zxx
         2: variable.other.member.zxx
@@ -115,14 +123,14 @@ contexts:
     - include: comment
     - match: \b(out)\b
       scope: keyword.control.zxx
-    - match: '\b({{basic_types}}) *({{identifier}})?'
+    - match: '({{basic_types}}) *({{identifier}})?'
       captures:
         1: support.type.zxx
         2: variable.parameter.zxx
       set:
         - include: parameter-next
 
-    - match: '(?:({{identifier}})(\.))?({{identifier}})({{identifier}})?'
+    - match: '(?:({{identifier}})(\.))?({{identifier}}) *({{identifier}})?'
       captures:
         1: storage.type.zxx
         2: punctuation.accessor.zxx
@@ -171,12 +179,15 @@ contexts:
 
   expression:
     - include: comment
+    - match: \b(copy|error|void)\b
+      scope: support.function.builtin.zxx
     - include: builtin
     - include: literals
     - include: operator
     - include: complex-types
     - match: '\b(let)\b'
       scope: invalid.illegal.variable.zxx
+
     - match: '({{identifier}})\('
       captures:
         1: variable.function.zxx
@@ -300,12 +311,19 @@ contexts:
           scope: punctuation.definition.map.end.zxx
           pop: true
 
-    - match: \b(fun)(\()
+    - match: \b(fun)\b
       captures:
         1: storage.type.zxx
-        2: punctuation.definition.group.begin.zxx
       push:
-        - include: parameter
+        - match: (\()(\))
+          pop: true
+          captures:
+            1: punctuation.definition.group.begin.zxx
+            2: punctuation.definition.group.end.zxx
+        - match: \(
+          name: punctuation.definition.group.begin.zxx
+          set:
+            - include: parameter
 
   builtin:
     - match: \b(any|b(ool|yte)|string|rune|float(32)?|u?int(8|16|32|64)?|datetime)\b
