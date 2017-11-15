@@ -15,7 +15,7 @@ variables:
   # thousands-separator
   t13s3: '\d{1,3}(?:-\d{3})+'
   t3s13: '\d{3}(?:-\d{1,2}|(?:-\d{3})+(?:-\d{1,2})?)'
-  basic_types: \b(?:self|any|bool|byte|string|rune|float(?:32|64)?|u?int(?:8|16|32|64)?|datetime)\b(?![-]?[\d\p{L}])
+  basic_types: \b(?:self|any|b(?:ool|yte)|string|rune|f(?:32|64|128|loat)?|uint|int|[ui](?:8|16|32|64|128)|datetime)\b(?![-]?[\d\p{L}])
 
 contexts:
   main:
@@ -213,13 +213,16 @@ contexts:
   statements:
     - match: ^(?=[^\t\n])
       pop: true
+
     - include: comment
+
     - match: '^\t+(def) '
       captures:
         1: storage.type.def.zxx
       push: def
+      pop: true
 
-    - match: '^\t+(fun) ({{identifier}})\('
+    - match: '^\t+(fun) ({{identifier}})(\()'
       captures:
         1: storage.type.fun.zxx
         2: entity.name.function.zxx
@@ -233,12 +236,13 @@ contexts:
 
     - match: ^(\t+)
       push:
+        - match: '^(?:\t+fun )'
+          pop: true
         - include: pop
         - match: \b(out|echo|defer|if|of|for|else|break|continue|throw|catch|yield)\b
           scope: keyword.control.zxx
         - match: \,
           scope: punctuation.separator.zxx
-
         - include: expression
         - include: assignment
         - include: comment
@@ -246,7 +250,8 @@ contexts:
   expression:
     - match: ^(?=[^\t\n])
       pop: true
-    - include: sub-type
+    - match: '^(?:\t+fun )'
+      pop: true
     - include: comment
 
     - match: \b(copy|error|void)\b
@@ -369,14 +374,17 @@ contexts:
         1: constant.character.escape.zxx
 
   assignment:
-    - include: sub-type
     - match: ^(?=[^\t\n])
+      pop: true
+    - match: '^(?:\t+fun )'
       pop: true
     - match: "(?://|<<|>>|[-+*/%&^|])?="
       scope: keyword.operator.assignment.zxx
 
   operator:
     - match: ^(?=[^\t\n])
+      pop: true
+    - match: '^(?:\t+fun )'
       pop: true
     - include: comment
     - match: '([+][+]|--|[\]\)\}] +[\[\(\{])'
@@ -412,6 +420,8 @@ contexts:
   complex-types:
     - match: ^(?=[^\t\n])
       pop: true
+    - match: '^(?:\t+fun )'
+      pop: true
     - match: \[
       scope: punctuation.definition.brackets.begin.zxx
       push:
@@ -446,9 +456,11 @@ contexts:
           push:  parameter
 
   builtin:
+    - match: '^(?:\t+fun )'
+      pop: true
     - match: ^(?=[^\t\n])
       pop: true
-    - match: \b(any|b(ool|yte)|string|rune|float(32)?|u?int(8|16|32|64)?|datetime)\b
+    - match: '{{basic_types}}'
       scope: support.type.zxx
     - match: \b(true|iota|false|null|iota|NaN|Infinity)\b
       scope: constant.language.zxx
@@ -457,3 +469,5 @@ contexts:
     - match: _
       scope: keyword.other.variable.zxx
 
+    - match: '$'
+      pop: true
