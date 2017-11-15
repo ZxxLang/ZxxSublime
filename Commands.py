@@ -1,95 +1,87 @@
 import sublime
 import sublime_plugin
+import unicodedata
 
 def to_first_non_tab_on_line(view, pt):
     while True:
         c = view.substr(pt)
+        if c != "\t":
+            break
+        pt += 1
+    return pt
+
+def visual_width(view, pt, tabsize):
+    width = 0
+    while pt>0 and view.rowcol(pt)[1]>0:
+        pt -= 1
+        c = view.substr(pt)
         if c == "\t":
-            pt += 1
+            width += tabsize
+        elif ord(c) < 255:
+            width += 1
         else:
-            break
+            c = unicodedata.east_asian_width(c)
+            width += (c == "W" or c == "F") and 2 or 1
 
-    return pt
-
-def to_next_non_white_space_on_line(view, pt):
-    while True:
-        c = view.substr(pt)
-        if c == " ":
-            pt += 1
-        else:
-            break
-
-    return pt
-
-def to_prev_separator_on_line(view, pt, follow):
-    while True:
-        c = view.substr(pt)
-        if c in follow:
-            if not (c==" " and view.substr(pt-1)=="\t"):
-                pt += 1
-            break
-        else:
-            pt -= 1
-
-    return pt
+    return width
 
 class ColAlignCommand(sublime_plugin.TextCommand):
 
     def run(self, edit, follow="\n\t ,([{:"):
         view = self.view
         origin = []
-        maxcol = 0
-        maxori = 0
-        second = -1
+        maxwidth = 0
+        offset = 0
+        tabSize = view.settings().get('tab_size')
+        regions = view.sel()
         for region in view.sel():
             lines = view.lines(region)
             if len(lines)!=1:
-                view.run_command('indent')
+                view.run_command("indent")
                 continue
 
-            pos = 0
+            pos = region.begin()
 
-            if view.substr(region.a) == " ":
-                pos = to_next_non_white_space_on_line(view, region.a)
-            else:
-                pos = to_prev_separator_on_line(view, region.a - 1, follow)
+            while view.substr(pos) == " ": pos+=1
 
-            tab = view.rowcol(to_first_non_tab_on_line(
-                    view, lines[0].begin()
-                ))[1]
+            while pos > 0:
+                if view.substr(pos - 1) in follow:
+                    break
+                pos -= 1
 
-            offset = view.rowcol(pos)[1] + tab*3
-            origin.append((pos, offset, offset == tab*4))
-            col = offset + 4 - offset % 4
+            col = view.rowcol(pos)[1]
+            if col == 0 or view.substr(pos-1)=="\t":
+                origin.append((pos, -1))
+                continue
 
-            if maxcol < col:
-                if maxori: second = maxori
-                maxcol = col
-                maxori = offset
-            elif second < offset:
-                second = offset
+            width = visual_width(view, pos, tabSize)
+
+
+            origin.append((pos, width))
+            if maxwidth < width:
+                maxwidth = width + width % 2
 
         origin.sort()
-        offset = 0
-        prev = -1
 
-        if len(origin)!=1 and second!=-1 and \
-            maxori > second and (maxcol-maxori) % 4 == 0:
-            maxcol = maxori
+        count = 0
+        for (pos, width) in origin:
+            if(width == -1):
+                view.insert(edit, pos+offset, "\t")
+                offset+=1
+                continue
 
-        for (pos, col, eq) in origin:
-            if prev == pos or \
-                maxori == col and maxcol == col: continue
-            prev = pos #unique
+            width = maxwidth - width
+            if width>0:
+                view.insert(edit, pos+offset, " " * width)
+                count+=1
+                offset+=width
 
-            if eq:
-                col = (maxcol-col) // 4
-                view.insert(edit, pos+offset, "\t" * col)
-            else:
-                col = maxcol-col
-                view.insert(edit, pos+offset, " " * col)
+        if count == 0:
+            for (pos, width) in origin:
+                if(width != -1):
+                    view.insert(edit, pos+offset, "  ")
+                    offset+=1
 
-            offset+=col
 
 class ToggleRuneCommentCommand(sublime_plugin.TextCommand):
 
