@@ -5,469 +5,429 @@
 name: zxx
 file_extensions:
   - zxx
-  - zxx.md
 first_line_match: ^#!\s*/.*\bzxx(\d(\.\d)?)?\b
 scope: source.zxx
 variables:
-  keywords: '(?:[ \t])(echo|error|void|fun|pub|let|def|iota|and|or|not|in|is|self|super|defer|if|of|for|else|break|continue|throw|catch|out|yield)(?:[ \n])'
-  identifier: '\p{L}(?:-?[\d\p{L}])*'
-  path: '(?:[.]/)?[A-Za-z]+(?:[._/-]*[A-Za-z0-9])*'
+  identifier: '(?:[a-zA-Z]|\p{L})(?:-?(?:[a-zA-Z0-9]|\p{L}))*'
+  path: '[A-Za-z](?:[-./]?[A-Za-z0-9])*'
   # thousands-separator
   t13s3: '\d{1,3}(?:-\d{3})+'
-  t3s13: '\d{3}(?:-\d{1,2}|(?:-\d{3})+(?:-\d{1,2})?)'
-  basic_types: \b(?:self|any|b(?:ool|yte)|string|rune|f(?:32|64|128|loat)?|uint|int|[ui](?:8|16|32|64|128)|datetime)\b(?![-]?[\d\p{L}])
+  t3s13: (?:\d{3}-)*(?:\d{1,3})?
+  builtin_types: \b(?:any|self|base|b(?:ool|yte)|string|rune|f(?:32|64|128|loat)|u?int|[ui](?:8|16|32|64|128)|time|error|void)\b(?=[^-]|$)
 
 contexts:
   main:
     - include: use
-    - include: let
-    - include: top-def
-    - include: top-fun
-    - match: ^.*
+    - include: let-pub
+    - include: def-pub
+    - include: fun-pub
+    - match: ^.+$
       scope: comment.line.zxx
 
-  comment:
-    - match: '^\t+([ ;].*)$'
+  must-indent:
+    - match: ^( [^ ].*)$
+      scope: invalid.illegal.missing-indentation.zxx
+    - match: ^(  )+
+      scope: punctuation.indentation.zxx
+      push:
+        - match: (?=[^ ])
+          pop: true
+        - match: ( ).*$
+          scope: invalid.illegal.indentation.zxx
+          pop: true
+
+  continuation:
+    - match: (?:((\; ).*)?)
       captures:
         1: comment.line.zxx
-    - match: ' *((;).*)$'
-      captures:
-        1: comment..zxx
         2: punctuation.definition.comment.zxx
-  pop:
-    - match: ^(?=[^\t\n])
+    - include: expression
+
+  comment:
+    - match: ^(?=[^ \n])
+      pop: true
+    - include: must-indent
+    - match: (\; )
+      scope: punctuation.definition.comment.zxx
+      push:
+        - meta_scope: comment.line.zxx
+        - match: $
+          pop: true
+    - match: ;.*$
+      scope: invalid.illegal.comment.zxx
       pop: true
 
   use:
-    - match: ^(use)\b *
+    - match: ^(use)$
       captures:
-        1: storage.type.use.zxx
+        1: keyword.control.import.zxx
       push:
-        - meta_scope: meta.use.zxx
+        - meta_scope: meta.block.use.zxx
         - include: comment
-        - include: pop
-        - match: (\')({{path}})(\')(?:[ ]+({{identifier}}))?
+        - match: ({{path}})(?:\s+(_|{{identifier}}))?
           captures:
-            1: punctuation.definition.string.begin.zxx
-            2: meta.path.zxx
-            3: punctuation.definition.string.end.zxx
-            4: entity.name.namespace.zxx
+            1: string.unquoted.module-path.zxx
+            2: entity.name.namespace.zxx
 
-  let:
-    - match: '^(?:(pub) )?(let)\b *'
-      captures:
-        1: storage.modifier.pub.zxx
-        2: storage.type.let.zxx
-      push:
-        - meta_scope: meta.let.zxx
-        - include: comment
-        - include: pop
-        - match: '{{keywords}}'
-          scope: invalid.illegal.let-variable.zxx
-          pop: true
-        - match: _
-          scope: keyword.other.variable.zxx
-        - match: '({{identifier}})'
-          scope: variable.other.constant.zxx
-        - match: \,
-          scope: punctuation.separator.zxx
-        - match: =
-          scope: keyword.operator.assignment.zxx
-          push:
-            - include: expression
-            - match: $
-              pop: true
-
-  top-fun:
-    - match: '^(?:(pub) )?(fun) (?:(@{{identifier}})(\.))?(?:({{identifier}})(\.))?(?:(\x27[^\x27]+\x27)|({{identifier}}))(\()'
-      captures:
-        1: storage.modifier.pub.zxx
-        2: storage.type.fun.zxx
-        3: storage.modifier.hack.zxx
-        4: punctuation.accessor.zxx
-
-        5: storage.type.zxx
-        6: punctuation.accessor.zxx
-        7: entity.other.operator-overloading.zxx
-        8: entity.name.function.zxx
-        9: punctuation.definition.parameter.begin.zxx
-
+  fun-pub:
+    - match: ^(fun (?:pub )?)
+      scope: storage.type.zxx
       push:
         - meta_scope: meta.function.zxx
-        - match: \)
-          scope: punctuation.definition.parameter.end.zxx
-          pop: true
-        - match: (?=[^ ])
-          push:  parameter
-
-    - match: ;.*
-      scope: comment.line.zxx
-
-    - match: ^(?=\t+)
-      push: statements
-
-  top-def:
-    - match: '^(?:(pub) )?(def) (?:(@{{identifier}})(\.))?({{identifier}})'
-      captures:
-        1: storage.modifier.pub.zxx
-        2: storage.type.def.zxx
-        3: storage.modifier.hack.zxx
-        4: punctuation.accessor.zxx
-        5: entity.name.type.zxx
-      push:
-        - meta_scope: meta.def.zxx
-        - include: def
-
-  def:
-    - match: '^(?=[^\t])'
+        - include: fun-named
+  pop:
+    - match: ^(?=[^ ])
       pop: true
-    - match: ^(?=\t)
-      set: field
-    - match: ;.*
-      scope: comment.line.zxx
-    - match: (?:({{identifier}})(\.))?({{identifier}})
-      captures:
-        1: meta.namespace.zxx
-        2: punctuation.accessor.zxx
-        3: entity.other.inherited-type.zxx
+
+  def-pub:
+    - match: ^(def (?:pub )?)
+      scope: storage.type.zxx
       push:
-        - match: (, *)(?:({{identifier}})(\.))?({{identifier}})
-          captures:
-            1: punctuation.separator.comma.zxx
-            2: meta.namespace.zxx
-            3: punctuation.accessor.zxx
-            4: entity.other.inherited-type.zxx
-        - include: complex-types
-        - match: ;.*
-          scope: comment.line.zxx
-        - match: $
-          pop: true
-    - include: complex-types
+        - meta_scope: meta.type.zxx
+        - include: type-named
 
-  field:
-    - match: ^(?=[^\t\n])
-      pop: true
-    - include: comment
-    - match: '({{basic_types}}) +(_|{{identifier}}(-)?)'
-      captures:
-        1: support.type.zxx
-        2: variable.other.member.zxx
-        3: storage.modifier.minus.zxx
-
-    - match: '({{identifier}}) +({{identifier}})(-)?'
+  let-pub:
+    - match: '^(let(?: pub)?)$'
       captures:
         1: storage.type.zxx
-        2: variable.other.member.zxx
-        3: storage.modifier.zxx
-    - match: (?=\[|\{|fun\()
       push:
-        - include: complex-types
-        - match: ' +({{identifier}})(-)?'
-          captures:
-            1: variable.other.member.zxx
-            2: storage.modifier.zxx
-          pop: true
+        - meta_scope: meta.block.let.zxx
+        - include: comment
+        - include: let-init
 
-  parameter:
-    - match: ^(?=[^\t\n])
-      pop: true
-    - match: \b(out|yield)\s+
-      scope: keyword.control.zxx
-    - match: ;.*$
-      scope: comment.line.zxx
-    - match: '(?=\))'
-      pop: true
-    - match: '(?=\[|\{|\bfun\()'
-      push:
-        - include: complex-types
-        - match: ' *({{keywords}})'
-          captures:
-            1: invalid.illegal.parameter.zxx
-        - match: ' *({{identifier}})'
-          captures:
-            1: variable.parameter.zxx
-          pop: true
+  let-init:
+    - match: _
+      scope: keyword.other.variable.zxx
+    - match: ({{identifier}})
+      scope: variable.other.constant.zxx
 
-    - match: '(?:({{basic_types}})|(?:({{identifier}})(\.))?({{identifier}}))'
+    - match: =
+      scope: keyword.operator.assignment.zxx
+      push: expression
+
+  fun-named:
+    - include: pop
+    - match: (?:{{identifier}}\.)?(?:(\x27[^\x27]+\x27)|({{identifier}}))(?=\()
       captures:
-        1: support.type.zxx
-        2: storage.type.zxx
-        3: punctuation.accessor.zxx
-        4: storage.type.zxx
+        1: entity.name.function.overloading.zxx
+        2: entity.name.function.zxx
       push:
-        - match: '({{keywords}})'
-          scope: invalid.illegal.parameter.zxx
-        - match: '({{identifier}})'
-          scope: variable.parameter.zxx
-        - match: '(?=,|\))'
-          pop: true
-        - match: ;.*
-          scope: comment.line.zxx
-          pop: true
+        - include: pop
+        - match: (\()
+          scope: punctuation.section.parens.begin.zxx
+          push:
+            - meta_scope: meta.function.parameters.zxx
+            - match: \)
+              scope: punctuation.section.parens.end.zxx
+              set:
+                - meta_scope: meta.block.zxx
+                - include: expression
+            - include: parameter
+
+  type-named:
+    - include: comment
+    - match: ({{identifier}})
+      scope: entity.name.type.zxx
+      push:
+        - include: compound-types
+        - include: anonymous-type
+        - match: ({{builtin_types}})
+          scope: support.type.zxx
+        - match: (?=\;|$)
+          set: field-decl
+
+    - match: '--'
+      push:
+        - include: anonymous-type
+        - match: ({{builtin_types}})
+          scope: support.type.zxx
+        - match: (?=\;|$)
+          set: field-decl
+
+  field-decl:
+    - meta_scope: meta.field-decl.zxx
+    - include: comment
+    - match: (_|{{identifier}})
+      scope: variable.other.member.zxx
+      push:
+        - include: comment
+        - include: anonymous-type
+        - include: brackets
+        - match: (?:({{builtin_types}})|(?:({{identifier}})(\.))?({{identifier}}))
+          captures:
+            1: support.type.zxx
+            3: punctuation.accessor.zxx
         - match: $
           pop: true
 
-    - match: $
-      pop: true
-
-  statements:
-    - match: ^(?=[^\t\n])
-      pop: true
-
-    - include: comment
-
-    - match: '^\t+(def) '
+  parameter-inline:
+    - match: \b(out|yield)[ ]+
+      scope: keyword.control.zxx
+    - include: compound-types
+    - include: anonymous-type
+    - match: (?:({{builtin_types}})|(?:({{identifier}})(\.))?({{identifier}}))
       captures:
-        1: storage.type.def.zxx
-      push: def
+        1: support.type.zxx
+        3: punctuation.accessor.zxx
+      push:
+        - match: ([-+]?\d+) # def T [byte 0]
+          scope: constant.numeric.integer.zxx
+        - match: (?=[\]\}\)]|--)
+          pop: true
+        - include: param-name
+    - match: (?=[\]\}\)]|--)
       pop: true
 
-    - match: '^\t+(fun) ({{identifier}})(\()'
+  parameter:
+    - match: \b(out|yield)[ ]+
+      scope: keyword.control.zxx
+    - include: compound-types
+    - include: anonymous-type
+    - match: (?:({{builtin_types}})|(?:({{identifier}})(\.))?({{identifier}}))
       captures:
-        1: storage.type.fun.zxx
-        2: entity.name.function.zxx
-        3: punctuation.definition.parameter.begin.zxx
+        1: support.type.zxx
+        3: punctuation.accessor.zxx
       push:
-        - match: \)
-          scope: punctuation.definition.parameter.end.zxx
+        - match: (?=\))
           pop: true
-        - match: (?=[^ ])
-          push:  parameter
-
-    - match: ^(\t+)
-      push:
-        - match: '^(?:\t+fun )'
-          pop: true
-        - include: pop
-        - match: \b(out|echo|defer|if|of|for|else|break|continue|throw|catch|yield)\b
-          scope: keyword.control.zxx
-        - match: \,
-          scope: punctuation.separator.zxx
-        - include: expression
-        - include: assignment
         - include: comment
+        - include: param-name
+
+  param-name:
+    - match: (?=\))
+      pop: true
+    - match: \,
+      scope: punctuation.separator.zxx
+      pop: true
+    - match: ({{identifier}})
+      scope: variable.parameter.zxx
+      pop: true
+
+  next:
+    - match: $
+      push: expression
+
+  brackets:
+    - match: \[
+      scope: punctuation.section.brackets.begin.zxx
+      push:
+        - meta_scope: meta.brackets.zxx
+        - match: \](?=\()
+          scope: punctuation.section.brackets.end.zxx
+          set: callify
+        - match: \]
+          scope: punctuation.section.brackets.end.zxx
+          pop: true
+        - include: next
+        - include: expression
+    - match: \(
+      scope: punctuation.section.group.begin.zxx
+      push:
+        - meta_scope: meta.group.zxx
+        - match: \)(?=\()
+          scope: punctuation.section.group.end.zxx
+          set: callify
+        - match: \)
+          scope: punctuation.section.group.end.zxx
+          pop: true
+        - include: next
+        - include: expression
+    - match: \{
+      scope: punctuation.section.braces.begin.zxx
+      push:
+        - meta_scope: meta.braces.zxx
+        - match: \}
+          scope: punctuation.section.braces.end.zxx
+          pop: true
+        - include: next
+        - include: expression
 
   expression:
-    - match: ^(?=[^\t\n])
-      pop: true
-    - match: '^(?:\t+fun )'
-      pop: true
     - include: comment
-
-    - match: \b(copy|error|void)\b
-      scope: support.function.builtin.zxx
-
-    - match: '(\[|\()(?=[^:]+:)'
-      captures:
-        1: punctuation.definition.slice.begin.zxx
+    - match: \b(error|void|out|echo|defer|if|for|else|elif|break|continue|throw|catch|yield)\b(?=[^-]|$)
+      scope: keyword.control.zxx
+      push: expression
+    - match: \b(fun)[ ]
       push:
-        - include: expression
-        - match: ':'
-          scope: punctuation.definition.colon.zxx
-        - include: expression
-        - match: '(]|\))'
-          scope: punctuation.definition.slice.end.zxx
-          pop: true
-        - match: '.*'
-          scope: invalid.illegal.expression.zxx
-          pop: true
+        - meta_scope: meta.function.zxx
+        - include: fun-named
+    - match: _
+      scope: keyword.other.variable.zxx
 
-    - include: builtin
     - include: literals
-    - include: complex-types
+    - include: anonymous-type
+    - include: brackets
+    - include: builtin
     - include: operator
-    - match: '{{identifier}}'
+
+    - match: ({{identifier}})(?=\()
+      scope: variable.other.zxx
+      push: callify
+
+    - match: ({{identifier}})
       scope: variable.other.zxx
 
-  literals:
-    - match: ^(?=[^\t\n])
+    - match: (?=[\]\}\)])
       pop: true
-    - match: '\b(\d{4}(-?(0[1-9]|1[0-2])(-?(0[1-9]|[12][0-9]|3[01]))?)?T(\d\d(:?\d\d){0,2}(\.\d{1,9})?)?(Z|[-+]\d\d(:?\d\d)?)?)\b'
-      scope: constant.other.datetime.zxx
 
-    - match: '\b0f([0-9a-fA-F]{16}|[0-9a-fA-F]{8})\b'
+  callify:
+    - meta_scope: meta.function-call.zxx
+    - match: \(
+      scope: punctuation.section.parens.begin.zxx
+    - match: \)
+      scope: punctuation.section.parens.end.zxx
+      pop: true
+    - include: expression
+
+  operator:
+    - match: \.\.
+      scope: keyword.operator.yielder.zxx
+    - match: \.
+      scope: punctuation.accessor.zxx
+    - match: ((?:[-+*/&|^%]|\*\*|<<|>>>|>>|@)?=)
+      scope: keyword.operator.assignment.zxx
+    - match: (\*{1,2}|[-+/%])
+      scope: keyword.operator.arithmetic.zxx
+    - match: (<<|>>>|>>|[&^|~])
+      scope: keyword.operator.bitwise.zxx
+    - match: ([<>]=?)
+      scope: keyword.operator.logical.zxx
+    - match: \,
+      scope: punctuation.separator.zxx
+    - match: \b(of)\b(?=[^-])
+      scope: keyword.control.zxx
+    - match: \b(is|not|un|and|or|in)\b(?=[^-])
+      scope: keyword.operator.word.zxx
+
+  builtin:
+    - match: \b(true|false|null|iota|NaN|Infinity)\b(?=[^-]|$)
+      scope: keyword.other.constant.zxx
+    - match: _
+      scope: keyword.other.variable.zxx
+    - match: ({{builtin_types}})(?=\()
+      scope: support.type.zxx
+      push: callify
+    - match: ({{builtin_types}})
+      scope: support.type.zxx
+
+  time:
+    - match: ((\d{4}(-?(0[1-9]|1[0-2])(-?(0[1-9]|[12][0-9]|3[01]))?)?)?((DST|T)?(\d\d(:?\d\d){0,2})?)?(\.\d{1,9})?(LSC)?(Z|[-+]\d\d(:?\d\d)?)?)
+      scope: constant.other.time.zxx
+
+  literals:
+    - match: \b0f([0-9a-fA-F]{16}|[0-9a-fA-F]{8})\b
       scope: constant.numeric.floating-point.zxx
 
-    - match: '\b(0x[0-9a-fA-F]+|0b[01]+)\b'
+    - match: \b(0x[0-9a-fA-F]+|0b[01]+)\b
       scope: constant.numeric.integer.zxx
 
-    - match: '\b({{t13s3}}\.(?:{{t3s13}})(?:[eE][-+]?{{t13s3}})?)\b(?![.\d])'
+    - match: \b({{t13s3}}\.(?:{{t3s13}})(?:[eE][-+]?{{t13s3}})?)\b(?![.\d])
       scope: constant.numeric.floating-point.zxx
 
-    - match: '\b({{t13s3}}\.(?:{{t3s13}})(?:[eE][-+]?{{t13s3}})?)[.\d]+'
+    - match: \b({{t13s3}}\.(?:{{t3s13}})(?:[eE][-+]?{{t13s3}})?)[.\d]+
       scope: invalid.illegal.floating-point.zxx
 
-    - match: '\b(\d+\.\d+(?:[eE][-+]?\d+)?)\b(?![.\d])'
+    - match: \b(\d+\.\d+(?:[eE][-+]?\d+)?)\b(?![.\d])
       scope: constant.numeric.floating-point.zxx
 
-    - match: '\b(\d+\.\d+(?:[eE][-+]?\d+)?)[.\d]+'
+    - match: \b(\d+\.\d+(?:[eE][-+]?\d+)?)[.\d]+
       scope: invalid.illegal.floating-point.zxx
 
-    - match: '\b({{t13s3}}([eE][-+]?{{t13s3}})?|\d+)\b'
+    - match: \b({{t13s3}}([eE][-+]?{{t13s3}})?|\d+)\b
       scope: constant.numeric.integer.zxx
 
-    - match: '\b({{t13s3}}([eE][-+]?{{t13s3}})?|\d+)\b'
+    - match: \b({{t13s3}}([eE][-+]?{{t13s3}})?|\d+)\b
       scope: constant.numeric.integer.zxx
+
 
     - match: \"
-      scope: punctuation.definition.bytes-string.begin.zxx
+      scope: punctuation.definition.string.begin.zxx
       push:
-        - meta_scope: string.bytes-string.zxx
-        - include: escaped_char
+        - meta_scope: string.quoted.other.time.zxx
         - match: \"
-          scope: punctuation.definition.bytes-string.end.zxx
+          scope: punctuation.definition.string.end.zxx
           pop: true
+        - include: time
 
     - match: \'
       scope: punctuation.definition.string.begin.zxx
       push:
         - meta_scope: string.quoted.single.zxx
-        - include: escaped_char
         - match: \'
           scope: punctuation.definition.string.end.zxx
           pop: true
+        - include: escaped_char
 
     - match: \`
-      scope: punctuation.definition.template-string.begin.zxx
+      scope: punctuation.definition.string.begin.zxx
       push:
-        - meta_scope: string.template-string.zxx
-        - match: ^([^\t]+)
-          scope: invalid.illegal.loss-indentation.zxx
-          pop: true
+        - meta_scope: string.quoted.other.template.zxx
         - match: \`
-          scope: punctuation.definition.template-string.end.zxx
+          scope: punctuation.definition.string.end.zxx
           pop: true
-        - match: \$\{
-          scope: punctuation.definition.template-expression.begin.zxx
+        - match: '{{'
+          scope: punctuation.section.group.begin.zxx
           push:
-            - meta_scope: meta.template-expression.zxx
-            - include: expression
-            - match: \}
-              scope: punctuation.definition.template-expression.end.zxx
+            - match: '}}'
+              scope: punctuation.section.group.end.zxx
               pop: true
+            - include: expression
+        - match: ^\n
+        - match: ^([^ ]{2})+
+          scope: invalid.illegal.missing-indentation.zxx
+
   escaped_char:
-    - match: ^([^\t]+)
-      scope: invalid.illegal.indentation.zxx
-      pop: true
-    - match: (\\x[0-9A-Fa-f]{2})|(\\[0-7]{3})|(\\\\)|(\\")|(\\')|(\\a)|(\\b)|(\\f)|(\\n)|(\\r)|(\\t)|(\\v)
+    - match: ^(  )+
+      scope: punctuation.indentation.zxx
+    - match: (\\x[0-9A-Fa-f]{2})|(\\")|(\\')|(\\\\)|(\\\/)|(\\b)|(\\f)|(\\n)|(\\r)|(\\t)
       captures:
         1: constant.character.escape.hex.zxx
-        2: constant.character.escape.octal.zxx
-        3: constant.character.escape.newline.zxx
-        4: constant.character.escape.backlash.zxx
-        5: constant.character.escape.double-quote.zxx
-        6: constant.character.escape.single-quote.zxx
-        7: constant.character.escape.bell.zxx
-        8: constant.character.escape.backspace.zxx
-        9: constant.character.escape.formfeed.zxx
-        10: constant.character.escape.linefeed.zxx
-        11: constant.character.escape.return.zxx
-        12: constant.character.escape.tab.zxx
-        13: constant.character.escape.vertical-tab.zxx
-    - match: (\\U[0-9A-Fa-f]{8})|(\\u[0-9A-Fa-f]{4})|(\\N\\{[a-zA-Z ]+\\})
-      captures:
-        1: constant.character.escape.unicode.16-bit-hex.zxx
-        2: constant.character.escape.unicode.32-bit-hex.zxx
-        3: constant.character.escape.unicode.name.zxx
-    - match: (\\[.]|\\$)
-      captures:
-        1: constant.character.escape.zxx
+        2: constant.character.escape.double-quote.zxx
+        3: constant.character.escape.single-quote.zxx
+        4: constant.character.escape.reverse-solidus.zxx
+        5: constant.character.escape.solidus.zxx
+        6: constant.character.escape.backspace.zxx
+        7: constant.character.escape.formfeed.zxx
+        8: constant.character.escape.linefeed.zxx
+        9: constant.character.escape.carriage-return.zxx
+        10: constant.character.escape.horizontal-tab.zxx
+    - match: (\\u\{[0-9A-Fa-f]{1,6}\})|(\\u[0-9A-Fa-f]{4})
+      scope: constant.character.escape.unicode.zxx
+    - match: (\\[\x21-\x7E])
+      scope: constant.character.escape.visible.zxx
 
-  assignment:
-    - match: ^(?=[^\t\n])
-      pop: true
-    - match: '^(?:\t+fun )'
-      pop: true
-    - match: "(?://|<<|>>|[-+*/%&^|])?="
-      scope: keyword.operator.assignment.zxx
-
-  operator:
-    - match: ^(?=[^\t\n])
-      pop: true
-    - match: '^(?:\t+fun )'
-      pop: true
-    - include: comment
-    - match: '([+][+]|--|[\]\)\}] +[\[\(\{])'
-      scope: invalid.illegal.operator.zxx
-
-    - match: \b(in|not in)\b
-      scope: keyword.operator.membership.zxx
-    - match: \b(is not|is)\b
-      scope: keyword.operator.comparison.zxx
-    - match: \b(not|and|or)\b
-      scope: keyword.operator.logical.zxx
-    - match: (==|<>|<|<=|>|>=|≠|≤|≥|≈)
-      scope: keyword.operator.comparison.zxx
-    - match: "(//|<<|>>>|>>|[*][*]|[-+*/%&^|~])"
-      scope: keyword.operator.arithmetic.zxx
-    - match: ([.]{2,3})
-      scope: keyword.operator.range.zxx
-    - match: \.
-      scope: keyword.operator.dot.zxx
-      push:
-        - match: '{{identifier}}'
-          scope: variable.other.member.zxx
-          pop: true
-        - match: ';.*'
-          scope: comment.line.zxx
-          pop: true
-        - match: $
-          pop: true
-
-    - match: \,
-      scope: punctuation.separator.zxx
-
-  complex-types:
-    - match: ^(?=[^\t\n])
-      pop: true
-    - match: '^(?:\t+fun )'
-      pop: true
+  compound-types:
     - match: \[
-      scope: punctuation.definition.brackets.begin.zxx
+      scope: punctuation.section.brackets.begin.zxx
       push:
-        - include: expression
-        - match: '\+'
-          scope: storage.modifier.growth.zxx
         - match: \]
-          scope: punctuation.definition.brackets.end.zxx
+          scope: punctuation.section.brackets.end.zxx
           pop: true
-    - match: \{
-      scope: punctuation.definition.brackets.begin.zxx
-      push:
-        - include: expression
-        - match: '\+'
-          scope: storage.modifier.growth.zxx
-        - match: \}
-          scope: punctuation.definition.brackets.end.zxx
-          pop: true
+        - include: compound-types
+        - include: anonymous-type
+        - include: parameter-inline
 
+    - match: \{
+      scope: punctuation.section.braces.begin.zxx
+      push:
+        - match: \}
+          scope: punctuation.section.braces.end.zxx
+          pop: true
+        - include: compound-types
+        - include: anonymous-type
+        - include: parameter-inline
+    - match: (?=\)|--)
+      pop: true
+
+  anonymous-type:
     - match: \b(fun)(\()
       captures:
         1: storage.type.zxx
-        2: punctuation.definition.group.begin.zxx
+        2: punctuation.definition.parameter.begin.zxx
       push:
         - match: \)
           scope: punctuation.definition.parameter.end.zxx
           pop: true
-        - match: '[^)]+$'
-          scope: invalid.illegal.parameter.zxx
-          pop: true
-        - match: (?=[^ ])
-          push:  parameter
-
-  builtin:
-    - match: '^(?:\t+fun )'
-      pop: true
-    - match: ^(?=[^\t\n])
-      pop: true
-    - match: '{{basic_types}}'
-      scope: support.type.zxx
-    - match: \b(true|iota|false|null|iota|NaN|Infinity)\b
-      scope: constant.language.zxx
-    - match: \b(self|super)\b
-      scope: variable.language.zxx
-    - match: _
-      scope: keyword.other.variable.zxx
-
-    - match: '$'
+        - include: parameter-inline
+    - match: (?=[\]\}\)])
       pop: true

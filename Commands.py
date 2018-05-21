@@ -2,14 +2,6 @@ import sublime
 import sublime_plugin
 import unicodedata
 
-def to_first_non_tab_on_line(view, pt):
-    while True:
-        c = view.substr(pt)
-        if c != "\t":
-            break
-        pt += 1
-    return pt
-
 def visual_width(view, pt, tabsize):
     width = 0
     while pt>0 and view.rowcol(pt)[1]>0:
@@ -21,13 +13,13 @@ def visual_width(view, pt, tabsize):
             width += 1
         else:
             c = unicodedata.east_asian_width(c)
-            width += (c == "W" or c == "F") and 2 or 1
+            width += c in ("F", "W") and 2 or 1
 
     return width
 
 class ColAlignCommand(sublime_plugin.TextCommand):
 
-    def run(self, edit, follow="\n\t ,([{:"):
+    def run(self, edit, follow="\n ,([{:"):
         view = self.view
         origin = []
         maxwidth = 0
@@ -81,27 +73,3 @@ class ColAlignCommand(sublime_plugin.TextCommand):
                 if(width != -1):
                     view.insert(edit, pos+offset, "  ")
                     offset+=1
-
-
-class ToggleRuneCommentCommand(sublime_plugin.TextCommand):
-
-    def run(self, edit, rune=" "):
-
-        view = self.view
-
-        for region in view.sel():
-
-            start_positions = [r.begin() for r in view.lines(region)]
-            start_positions.reverse()
-
-            for pos in start_positions:
-                pos = to_first_non_tab_on_line(view, pos)
-
-                if view.substr(pos) == "\n":
-                    continue
-
-                if view.substr(pos) == rune:
-                    view.erase(edit, sublime.Region(pos, pos + 1))
-                else:
-                    view.insert(edit, pos, rune)
-
